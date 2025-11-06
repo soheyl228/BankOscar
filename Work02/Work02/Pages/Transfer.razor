@@ -2,6 +2,11 @@
 @using System.Linq
 @inject IAccountService AccountService
 
+@* Transfer UI:
+   - Choose source & destination accounts and an amount
+   - Validates input and calls TransferAsync on IAccountService
+   - Refreshes account balances after a successful transfer *@
+
 <PageTitle>Transfer</PageTitle>
 
 <h3>Transfer</h3>
@@ -34,6 +39,8 @@
                                 <option value="@account.Id">@account.Name — @account.Balance.ToString("N2") @account.Currency</option>
                             }
                         </InputSelect>
+
+                        @* Shows source account balance to help the user *@
                         @if (FromAccount != null)
                         {
                             <div class="mt-2 small text-muted">Available balance: @FromAccount.Balance.ToString("N2") @FromAccount.Currency</div>
@@ -65,6 +72,7 @@
         </div>
     </div>
 
+    @* Account list shown next to the form for convenience *@
     <div class="col-md-7">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -104,12 +112,14 @@
 </div>
 
 @code {
+    // Form model and local caches
     private readonly TransferMFormModel _model = new();
     private List<BankAccount> _accounts = new();
     private List<BankAccount> _toAccounts = new();
     private string? _errorMessage;
     private string? _successMessage;
 
+    // Convenience accessor to show from-account balance
     private BankAccount? FromAccount => _accounts.FirstOrDefault(a => a.Id == _model.FromAccountId);
 
     private class TransferMFormModel
@@ -121,12 +131,14 @@
 
     protected override async Task OnInitializedAsync() => await LoadAccountsAsync();
 
+    // Load accounts from service and create a copy for "to" selection
     private async Task LoadAccountsAsync()
     {
         _accounts = (await AccountService.GetAccounts()).OfType<BankAccount>().ToList();
         _toAccounts = _accounts.ToList();
     }
 
+    // Submit handler validates, calls service and refreshes UI
     private async Task OnSubmitAsync()
     {
         _errorMessage = null;
@@ -152,7 +164,10 @@
 
         try
         {
+            // Business logic lives in AccountService.TransferAsync()
             await AccountService.TransferAsync(_model.FromAccountId, _model.ToAccountId, _model.Amount);
+
+            // Refresh accounts and selections after the transfer
             await LoadAccountsAsync();
             _toAccounts = _accounts.Where(x => x.Id != _model.FromAccountId).ToList();
 
@@ -163,6 +178,7 @@
         }
         catch (Exception ex)
         {
+            // Surface error message to the user
             _errorMessage = ex.Message;
             Console.WriteLine(ex);
         }
@@ -170,6 +186,7 @@
         StateHasChanged();
     }
 
+    // Handle selection change and rebuild recipient list
     private void HandleFormChanged(ChangeEventArgs eventArgs)
     {
         if (Guid.TryParse(eventArgs.Value?.ToString(), out var id))

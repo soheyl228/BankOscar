@@ -3,6 +3,11 @@
 @inject IAccountService AccountService
 @inject IJSRuntime JSRuntime
 
+@* Deposit & Withdraw UI:
+   - Pick an account, choose operation and amount
+   - Shows a confirm dialog for large amounts
+   - Calls AccountService.DepositAsync / WithdrawAsync *@
+
 <PageTitle>Deposit & Withdraw</PageTitle>
 
 <h3>Deposit & Withdraw</h3>
@@ -30,7 +35,8 @@
                             <option value="@Guid.Empty">Choose account...</option>
                             @foreach (var account in _accounts)
                             {
-                                <option value="@account.Id">@account.Name — @account.Balance.ToString("N2") @account.Currency</option>
+                                <option value="@account.Id">@account.Name — @account.Balance.ToString("N2") @account.Currency
+                                </option>
                             }
                         </InputSelect>
                     </div>
@@ -60,6 +66,7 @@
         </div>
     </div>
 
+    @* Accounts list previews balances to help decisions *@
     <div class="col-md-7">
         <div class="card shadow-sm">
             <div class="card-body">
@@ -102,12 +109,14 @@
     private string? _errorMessage;
     private string? _successMessage;
 
+    // Form model for the operation
     private DepositWithdrawModel _model = new();
 
     protected override async Task OnInitializedAsync() => await LoadAccountsAsync();
 
     private async Task LoadAccountsAsync()
     {
+        // Load current accounts from the service into local cache
         _accounts = (await AccountService.GetAccounts()).OfType<BankAccount>().ToList();
     }
 
@@ -123,6 +132,7 @@
             return;
         }
 
+        // Confirm large amounts to avoid accidental operations
         if (_model.Amount >= 10000)
         {
             var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"You are about to {_model.Operation.ToString().ToLower()} {_model.Amount.ToString("N2")} {account.Currency}. Continue?");
@@ -160,19 +170,10 @@
 
     private class DepositWithdrawModel
     {
-        [Required]
-        public Guid AccountId { get; set; }
-
-        [Required]
-        public OperationType Operation { get; set; } = OperationType.Deposit;
-
-        [Range(1, double.MaxValue, ErrorMessage = "Amount must be greater than 0")]
-        public decimal Amount { get; set; }
+        [Required] public Guid AccountId { get; set; }
+        [Required] public OperationType Operation { get; set; } = OperationType.Deposit;
+        [Range(1, double.MaxValue, ErrorMessage = "Amount must be greater than 0")] public decimal Amount { get; set; }
     }
 
-    public enum OperationType
-    {
-        Deposit,
-        Withdraw
-    }
+    public enum OperationType { Deposit, Withdraw }
 }

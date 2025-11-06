@@ -1,10 +1,9 @@
 ﻿namespace Work02.Interface
 {
-
-    // Interface containing the BankAccount Methods
+    // Interface implemented by domain BankAccount.
+    // UI and services reference this interface to avoid direct coupling to the concrete class.
     public interface IBankAccount
     {
-
         Guid Id { get; }    
         string Name { get; }
         AccountType AccountType { get; }

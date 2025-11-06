@@ -1,12 +1,38 @@
-﻿<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-    <NotFound>
-        <PageTitle>Not found</PageTitle>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p role="alert">Sorry, there's nothing at this address.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+﻿@using Work02.Interface
+@using Work02.Pages
+@inject IAuthService AuthService
+
+@code {
+    private bool _initialized;
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize auth state from storage
+        await AuthService.InitializeAsync();
+        _initialized = true;
+    }
+}
+
+@if (!_initialized)
+{
+    <div class="m-4">Loading...</div>
+}
+else if (!AuthService.IsAuthenticated)
+{
+    @* Show the Login component (namespace Work02.Pages) until authenticated *@
+    <Login />
+}
+else
+{
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p role="alert">Sorry, there's nothing at this address.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+}

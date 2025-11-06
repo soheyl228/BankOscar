@@ -1,0 +1,147 @@
+﻿@page "/Budget"
+@using Work02.Interface
+@using Work02.Domain
+@inject IBudgetService BudgetService
+@inject IAccountService AccountService
+
+<PageTitle>Budget</PageTitle>
+
+<h3>Budget & Expenses</h3>
+
+<div class="row gy-4">
+    <div class="col-md-5">
+        <div class="card shadow-sm p-3">
+            <label class="form-label">Add Category</label>
+            <div class="input-group mb-3">
+                <input class="form-control" @bind="_newCategoryName" placeholder="Category name (e.g. Food)" />
+                <button class="btn btn-primary" @onclick="AddCategory">Add</button>
+            </div>
+
+            <label class="form-label">Add Expense</label>
+            <EditForm Model="_expenseModel" OnValidSubmit="AddExpense">
+                <DataAnnotationsValidator />
+                <div class="mb-2">
+                    <label class="form-label">Category</label>
+                    <InputSelect class="form-select" @bind-Value="_expenseModel.CategoryId">
+                        <option value="@Guid.Empty">Select...</option>
+                        @foreach (var c in _categories) { <option value="@c.Id">@c.Name</option> }
+                    </InputSelect>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Account</label>
+                    <InputSelect class="form-select" @bind-Value="_expenseModel.AccountId">
+                        <option value="@Guid.Empty">Select...</option>
+                        @foreach (var a in _accounts) { <option value="@a.Id">@a.Name — @a.Balance.ToString("N2")</option> }
+                    </InputSelect>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Amount</label>
+                    <InputNumber class="form-control" @bind-Value="_expenseModel.Amount" />
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Note</label>
+                    <InputText class="form-control" @bind-Value="_expenseModel.Note" />
+                </div>
+                <button class="btn btn-primary" type="submit">Add expense</button>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card shadow-sm p-3">
+            <h5>Categories</h5>
+            @if (!_categories.Any())
+            {
+                <div class="text-muted">No categories</div>
+            }
+            else
+            {
+                <ul class="list-group mb-3">
+                    @foreach (var c in _categories)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            @c.Name
+                            <span class="badge bg-primary rounded-pill">@GetTotal(c.Id).Result.ToString("N2")</span>
+                        </li>
+                    }
+                </ul>
+            }
+
+            <h5>Expenses</h5>
+            <table class="table table-sm">
+                <thead><tr><th>Date</th><th>Category</th><th>Account</th><th class="text-end">Amount</th><th>Note</th></tr></thead>
+                <tbody>
+                    @foreach (var e in _expenses.OrderByDescending(x => x.TimeStamp))
+                    {
+                        <tr>
+                            <td>@e.TimeStamp.ToLocalTime().ToString("g")</td>
+                            <td>@GetCategoryName(e.CategoryId)</td>
+                            <td>@GetAccountName(e.AccountId)</td>
+                            <td class="text-end">@e.Amount.ToString("N2")</td>
+                            <td>@e.Note</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<BudgetCategory> _categories = new();
+    private List<Expense> _expenses = new();
+    private List<BankAccount> _accounts = new();
+    private string _newCategoryName = string.Empty;
+
+    private ExpenseModel _expenseModel = new();
+
+    private class ExpenseModel
+    {
+        public Guid CategoryId { get; set; } = Guid.Empty;
+        public Guid AccountId { get; set; } = Guid.Empty;
+        public decimal Amount { get; set; }
+        public string? Note { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await BudgetService.InitializeAsync();
+        _categories = (await BudgetService.GetCategoriesAsync()).ToList();
+        _expenses = (await BudgetService.GetExpensesAsync()).ToList();
+        _accounts = (await AccountService.GetAccounts()).OfType<BankAccount>().ToList();
+    }
+
+    private async Task AddCategory()
+    {
+        if (string.IsNullOrWhiteSpace(_newCategoryName)) return;
+        var c = new BudgetCategory { Name = _newCategoryName.Trim() };
+        await BudgetService.AddCategoryAsync(c);
+        _categories.Add(c);
+        _newCategoryName = string.Empty;
+    }
+
+    private async Task AddExpense()
+    {
+        if (_expenseModel.CategoryId == Guid.Empty || _expenseModel.AccountId == Guid.Empty || _expenseModel.Amount <= 0) return;
+        var e = new Expense
+        {
+            AccountId = _expenseModel.AccountId,
+            CategoryId = _expenseModel.CategoryId,
+            Amount = _expenseModel.Amount,
+            Note = _expenseModel.Note
+        };
+
+        await BudgetService.AddExpenseAsync(e);
+
+        // Record a withdraw on the account
+        await AccountService.WithdrawAsync(e.AccountId, e.Amount);
+
+        _expenses.Insert(0, e);
+        _expenseModel = new ExpenseModel();
+        _accounts = (await AccountService.GetAccounts()).OfType<BankAccount>().ToList();
+    }
+
+    private async Task<decimal> GetTotal(Guid categoryId) => await BudgetService.GetTotalByCategoryAsync(categoryId);
+    private string GetCategoryName(Guid id) => _categories.FirstOrDefault(c => c.Id == id)?.Name ?? "-";
+    private string GetAccountName(Guid id) => _accounts.FirstOrDefault(a => a.Id == id)?.Name ?? "-";
+}

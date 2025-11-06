@@ -1,4 +1,8 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@* Nav menu for the application.
+   Uses NavLink with ActiveClass so the current page is highlighted.
+   Icons are Bootstrap Icons (ensure icons CSS is loaded in index.html). *@
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="/">Work02</a>
         <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
@@ -9,26 +13,35 @@
 
 <div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
     <nav class="flex-column">
+        @* Home: main dashboard *@
         <div class="nav-item px-3">
             <NavLink ActiveClass="active" class="nav-link" href="/" Match="NavLinkMatch.All">
                 <span class="bi bi-house-door-fill me-2" aria-hidden="true"></span> Home
             </NavLink>
         </div>
+
+        @* Create account page *@
         <div class="nav-item px-3">
             <NavLink ActiveClass="active" class="nav-link" href="/CreateAccount">
                 <span class="bi bi-person-plus-fill me-2" aria-hidden="true"></span> Create Account
             </NavLink>
         </div>
+
+        @* Transfer page *@
         <div class="nav-item px-3">
             <NavLink ActiveClass="active" class="nav-link" href="/Transfer">
                 <span class="bi bi-arrow-left-right me-2" aria-hidden="true"></span> Transfer
             </NavLink>
         </div>
+
+        @* Transaction history page *@
         <div class="nav-item px-3">
             <NavLink ActiveClass="active" class="nav-link" href="/TransactionHistory">
                 <span class="bi bi-clock-history me-2" aria-hidden="true"></span> Transactions
             </NavLink>
         </div>
+
+        @* Deposit / Withdraw page *@
         <div class="nav-item px-3">
             <NavLink ActiveClass="active" class="nav-link" href="/DepositWithdraw">
                 <span class="bi bi-cash-stack me-2" aria-hidden="true"></span> Deposit / Withdraw
@@ -38,7 +51,10 @@
 </div>
 
 @code {
+    // Controls simple collapse behaviour for narrow screens
     private bool collapseNavMenu = true;
+
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
     private void ToggleNavMenu() => collapseNavMenu = !collapseNavMenu;
 }

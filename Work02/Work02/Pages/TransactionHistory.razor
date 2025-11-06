@@ -2,6 +2,11 @@
 @using System.Linq
 @inject IAccountService AccountService
 
+@* Transaction history page:
+   - Filter by account
+   - Shows flattened transaction list aggregated from account objects
+   - Uses GetTransactions() on BankAccount (domain method) *@
+
 <PageTitle>Transaction History</PageTitle>
 
 <h3>Transaction History</h3>
@@ -21,6 +26,7 @@
 
                 <div class="small text-muted">Total transactions: @(_allTransactions?.Count ?? 0)</div>
 
+                @* Controls use flex-wrap so buttons don't overlap on small screens *@
                 <div class="d-flex flex-wrap gap-2">
                     <button class="btn btn-sm btn-outline-secondary" @onclick="Reload">Refresh</button>
                     <NavLink class="btn btn-sm btn-primary" href="/Transfer">
@@ -81,19 +87,18 @@
     private List<Transaction> _allTransactions = new();
     private Guid _selectedAccountId = Guid.Empty;
 
+    // Filter logic: if account selected only show transactions where from/to equals that account
     private IEnumerable<Transaction> FilteredTransactions =>
         (_selectedAccountId == Guid.Empty)
             ? _allTransactions.OrderByDescending(t => t.TimeStamp)
             : _allTransactions.Where(t => ((t.FromAccountId ?? Guid.Empty) == _selectedAccountId) || ((t.ToAccountId ?? Guid.Empty) == _selectedAccountId))
                               .OrderByDescending(t => t.TimeStamp);
 
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadAsync();
-    }
+    protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
+        // Load accounts and aggregate transactions from each account's domain store
         var accounts = await AccountService.GetAccounts();
         _accounts = accounts.OfType<BankAccount>().ToList();
         _allTransactions = _accounts.SelectMany(a => a.GetTransactions()).OrderByDescending(t => t.TimeStamp).ToList();
