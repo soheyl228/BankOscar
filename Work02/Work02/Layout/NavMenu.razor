@@ -1,0 +1,44 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Work02</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink ActiveClass="active" class="nav-link" href="/" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill me-2" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink ActiveClass="active" class="nav-link" href="/CreateAccount">
+                <span class="bi bi-person-plus-fill me-2" aria-hidden="true"></span> Create Account
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink ActiveClass="active" class="nav-link" href="/Transfer">
+                <span class="bi bi-arrow-left-right me-2" aria-hidden="true"></span> Transfer
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink ActiveClass="active" class="nav-link" href="/TransactionHistory">
+                <span class="bi bi-clock-history me-2" aria-hidden="true"></span> Transactions
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink ActiveClass="active" class="nav-link" href="/DepositWithdraw">
+                <span class="bi bi-cash-stack me-2" aria-hidden="true"></span> Deposit / Withdraw
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    private void ToggleNavMenu() => collapseNavMenu = !collapseNavMenu;
+}

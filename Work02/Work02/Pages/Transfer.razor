@@ -1,0 +1,191 @@
+@page "/Transfer"
+@using System.Linq
+@inject IAccountService AccountService
+
+<PageTitle>Transfer</PageTitle>
+
+<h3>Transfer</h3>
+
+<div class="row gy-4">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">New transfer</h5>
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger">@_errorMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(_successMessage))
+                {
+                    <div class="alert alert-success">@_successMessage</div>
+                }
+
+                <EditForm Model="_model" OnValidSubmit="OnSubmitAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="mb-3">
+                        <label class="form-label">From account</label>
+                        <InputSelect TValue="Guid" class="form-select" @bind-Value="_model.FromAccountId" @onchange="HandleFormChanged">
+                            <option value="@Guid.Empty">Choose account...</option>
+                            @foreach (var account in _accounts)
+                            {
+                                <option value="@account.Id">@account.Name — @account.Balance.ToString("N2") @account.Currency</option>
+                            }
+                        </InputSelect>
+                        @if (FromAccount != null)
+                        {
+                            <div class="mt-2 small text-muted">Available balance: @FromAccount.Balance.ToString("N2") @FromAccount.Currency</div>
+                        }
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">To account</label>
+                        <InputSelect TValue="Guid" class="form-select" @bind-Value="_model.ToAccountId" disabled="@(_model.FromAccountId == Guid.Empty)">
+                            <option value="@Guid.Empty">Choose account...</option>
+                            @foreach (var account in _toAccounts)
+                            {
+                                <option value="@account.Id">@account.Name — @account.Balance.ToString("N2") @account.Currency</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Amount</label>
+                        <InputNumber TValue="decimal" class="form-control" @bind-Value="_model.Amount" />
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" type="submit" disabled="@(_model.FromAccountId == Guid.Empty || _model.ToAccountId == Guid.Empty || _model.Amount <= 0)">Transfer</button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">Reset</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Accounts</h5>
+
+                @if (_accounts == null || !_accounts.Any())
+                {
+                    <div class="text-muted">No accounts. Create one first.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th class="text-end">Balance</th>
+                                <th>Currency</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var account in _accounts)
+                            {
+                                <tr class="@(account.Id == _model.FromAccountId ? "table-info" : null)">
+                                    <td>@account.Name</td>
+                                    <td>@(account.AccountType == AccountType.Checking ? "Checking" : "Savings")</td>
+                                    <td class="text-end">@account.Balance.ToString("N2")</td>
+                                    <td>@account.Currency</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly TransferMFormModel _model = new();
+    private List<BankAccount> _accounts = new();
+    private List<BankAccount> _toAccounts = new();
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private BankAccount? FromAccount => _accounts.FirstOrDefault(a => a.Id == _model.FromAccountId);
+
+    private class TransferMFormModel
+    {
+        public Guid FromAccountId { get; set; }
+        public Guid ToAccountId { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAccountsAsync();
+
+    private async Task LoadAccountsAsync()
+    {
+        _accounts = (await AccountService.GetAccounts()).OfType<BankAccount>().ToList();
+        _toAccounts = _accounts.ToList();
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+
+        if (_model.FromAccountId == Guid.Empty || _model.ToAccountId == Guid.Empty)
+        {
+            _errorMessage = "Please choose both accounts.";
+            return;
+        }
+
+        if (_model.FromAccountId == _model.ToAccountId)
+        {
+            _errorMessage = "Cannot transfer to the same account.";
+            return;
+        }
+
+        if (_model.Amount <= 0)
+        {
+            _errorMessage = "Amount must be greater than 0.";
+            return;
+        }
+
+        try
+        {
+            await AccountService.TransferAsync(_model.FromAccountId, _model.ToAccountId, _model.Amount);
+            await LoadAccountsAsync();
+            _toAccounts = _accounts.Where(x => x.Id != _model.FromAccountId).ToList();
+
+            _successMessage = "Transfer completed.";
+            _model.Amount = 0;
+            _model.FromAccountId = Guid.Empty;
+            _model.ToAccountId = Guid.Empty;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+            Console.WriteLine(ex);
+        }
+
+        StateHasChanged();
+    }
+
+    private void HandleFormChanged(ChangeEventArgs eventArgs)
+    {
+        if (Guid.TryParse(eventArgs.Value?.ToString(), out var id))
+        {
+            _model.FromAccountId = id;
+            _toAccounts = _accounts.Where(a => a.Id != id).ToList();
+            _model.ToAccountId = Guid.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private void ResetForm()
+    {
+        _model.Amount = 0;
+        _model.FromAccountId = Guid.Empty;
+        _model.ToAccountId = Guid.Empty;
+        _toAccounts = _accounts.ToList();
+    }
+}

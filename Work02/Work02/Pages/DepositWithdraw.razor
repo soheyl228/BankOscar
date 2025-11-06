@@ -1,0 +1,178 @@
+﻿@page "/DepositWithdraw"
+@using System.ComponentModel.DataAnnotations
+@inject IAccountService AccountService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Deposit & Withdraw</PageTitle>
+
+<h3>Deposit & Withdraw</h3>
+
+<div class="row gy-4">
+    <div class="col-md-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <EditForm Model="_model" OnValidSubmit="OnSubmitAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-danger">@_errorMessage</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_successMessage))
+                    {
+                        <div class="alert alert-success">@_successMessage</div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label">Account</label>
+                        <InputSelect TValue="Guid" class="form-select" @bind-Value="_model.AccountId">
+                            <option value="@Guid.Empty">Choose account...</option>
+                            @foreach (var account in _accounts)
+                            {
+                                <option value="@account.Id">@account.Name — @account.Balance.ToString("N2") @account.Currency</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Operation</label>
+                        <InputSelect TValue="OperationType" class="form-select" @bind-Value="_model.Operation">
+                            <option value="@OperationType.Deposit">Deposit</option>
+                            <option value="@OperationType.Withdraw">Withdraw</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Amount</label>
+                        <InputNumber class="form-control" @bind-Value="_model.Amount" />
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" type="submit"
+                                disabled="@(_model.AccountId == Guid.Empty || _model.Amount <= 0)">
+                            Execute
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="ResetForm">Reset</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Accounts</h5>
+                @if (_accounts == null || !_accounts.Any())
+                {
+                    <div class="text-muted">No accounts. Create one first.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th class="text-end">Balance</th>
+                                <th>Currency</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var account in _accounts)
+                            {
+                                <tr class="@(account.Id == _model.AccountId ? "table-info" : null)">
+                                    <td>@account.Name</td>
+                                    <td>@(account.AccountType == AccountType.Checking ? "Checking" : "Savings")</td>
+                                    <td class="text-end">@account.Balance.ToString("N2")</td>
+                                    <td>@account.Currency</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<BankAccount> _accounts = new();
+    private string? _errorMessage;
+    private string? _successMessage;
+
+    private DepositWithdrawModel _model = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAccountsAsync();
+
+    private async Task LoadAccountsAsync()
+    {
+        _accounts = (await AccountService.GetAccounts()).OfType<BankAccount>().ToList();
+    }
+
+    private async Task OnSubmitAsync()
+    {
+        _errorMessage = null;
+        _successMessage = null;
+
+        var account = _accounts.FirstOrDefault(a => a.Id == _model.AccountId);
+        if (account == null)
+        {
+            _errorMessage = "Please choose a valid account.";
+            return;
+        }
+
+        if (_model.Amount >= 10000)
+        {
+            var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"You are about to {_model.Operation.ToString().ToLower()} {_model.Amount.ToString("N2")} {account.Currency}. Continue?");
+            if (!confirmed) return;
+        }
+
+        try
+        {
+            if (_model.Operation == OperationType.Deposit)
+            {
+                await AccountService.DepositAsync(account.Id, _model.Amount);
+                _successMessage = $"Deposit to {account.Name} succeeded.";
+            }
+            else
+            {
+                if (_model.Amount > account.Balance)
+                {
+                    _errorMessage = "Insufficient funds.";
+                    return;
+                }
+                await AccountService.WithdrawAsync(account.Id, _model.Amount);
+                _successMessage = $"Withdrawal from {account.Name} succeeded.";
+            }
+
+            await LoadAccountsAsync();
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message;
+        }
+    }
+
+    private void ResetForm() => _model = new DepositWithdrawModel();
+
+    private class DepositWithdrawModel
+    {
+        [Required]
+        public Guid AccountId { get; set; }
+
+        [Required]
+        public OperationType Operation { get; set; } = OperationType.Deposit;
+
+        [Range(1, double.MaxValue, ErrorMessage = "Amount must be greater than 0")]
+        public decimal Amount { get; set; }
+    }
+
+    public enum OperationType
+    {
+        Deposit,
+        Withdraw
+    }
+}

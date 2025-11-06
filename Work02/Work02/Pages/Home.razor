@@ -1,0 +1,106 @@
+﻿@page "/"
+@using System.Linq
+@inject IAccountService AccountService
+
+<PageTitle>Home</PageTitle>
+
+<h1>Welcome</h1>
+
+<div class="row gy-4">
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+                <div>
+                    <h5 class="card-title mb-1">Your accounts</h5>
+                    <div class="small text-muted">Accounts: @_accounts.Count — Total balance: @_accounts.Sum(a => a.Balance).ToString("N2")</div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-primary" href="/CreateAccount">Create account</a>
+                    <a class="btn btn-outline-secondary" href="/Transfer">Transfer</a>
+                    <a class="btn btn-outline-secondary" href="/TransactionHistory">Transactions</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Recent transactions</h5>
+
+                @if (_recentTransactions == null || !_recentTransactions.Any())
+                {
+                    <div class="text-muted">No transactions yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th class="text-end">Amount</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var tx in _recentTransactions)
+                                {
+                                    <tr>
+                                        <td>@tx.TimeStamp.ToLocalTime().ToString("g")</td>
+                                        <td>@tx.TransactionType</td>
+                                        <td class="text-end">@tx.Amount.ToString("N2")</td>
+                                        <td>@GetAccountName(tx.FromAccountId)</td>
+                                        <td>@GetAccountName(tx.ToAccountId)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Quick overview</h5>
+                <p class="mb-1"><strong>Accounts:</strong> @_accounts.Count</p>
+                <p class="mb-1"><strong>Total balance:</strong> @_accounts.Sum(a => a.Balance).ToString("N2")</p>
+
+                <h6 class="mt-3">Top accounts</h6>
+                <ul class="list-unstyled">
+                    @foreach (var acc in _accounts.Take(3))
+                    {
+                        <li><strong>@acc.Name</strong> — @acc.Balance.ToString("N2") @acc.Currency</li>
+                    }
+                </ul>
+
+                <div class="mt-3 d-grid">
+                    <a class="btn btn-outline-primary" href="/CreateAccount">Create account</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<BankAccount> _accounts = new();
+    private List<Transaction> _recentTransactions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var accounts = await AccountService.GetAccounts();
+        _accounts = accounts.OfType<BankAccount>().ToList();
+        _recentTransactions = _accounts.SelectMany(a => a.GetTransactions()).OrderByDescending(t => t.TimeStamp).Take(5).ToList();
+    }
+
+    private string GetAccountName(Guid? id)
+    {
+        if (id == null || id == Guid.Empty) return "-";
+        var acc = _accounts.FirstOrDefault(a => a.Id == id.Value);
+        return acc?.Name ?? id.ToString();
+    }
+}
